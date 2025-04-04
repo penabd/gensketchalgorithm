@@ -170,6 +170,42 @@ public:
     double _size;
 };
 
+
+/*
+ FIX ME:
+    CREATE A CRITICAL PATH CLASS CONTAINING:
+    THE INITIAL CRITICAL POINT ON THE OUTER CONTOUR
+    THE DIFFERENCE BETWEEN VALUES OF SUCCESSIVE CONTOURS
+    THE STARTING AND ENDPOINT OF EACH SUCCESSIVE CONTOURS
+ */
+
+struct criticalPath{
+    Point stcriticalPoint;
+    double diffepsilon;
+    vector<Pair> contourInfo;
+    
+    CrossData getCross (LineSegment segment, double nabla, double alpha, double dist, int inside)
+    {
+       Point init = *segment.start;
+       Point fini = *segment.end;
+       Point curr = init;
+        
+       Pair gradient[2];
+       
+       Point motion = PointUtil::vector (nabla + alpha, dist/100);
+       
+        //fix me
+       // bool cross = checkCross ();
+        
+        //fix me: find crossing point using contourInfo.
+       
+      // cout <<"Exception did not cross!"<<endl;
+      // exit (0);
+       
+       return CrossData ( Point (0,0), 0 );
+   }
+};
+
 double get_dist (Point A, Point B)
 {
     return sqrt ((A.x - B.x) * (A.x - B.x) + (A.y - B.y) * (A.y - B.y));
@@ -178,6 +214,15 @@ double get_dist (Point A, Point B)
 double changeGradient (double angleA, double angleB)
 {
     return abs (angleA - angleB); //check this again for bug.
+}
+
+//FIX ME
+
+bool checkifSource(Point S){
+    /*
+     FIX ME: fill this in, is S a local maxima??
+     */
+    return false;
 }
 
 void reverse (double &gradient)
@@ -375,7 +420,6 @@ vector<double> getGaussian (vector<Point> points)
     return fval;
 }
 
-//FIXME
 double getGaussian (Point point)
 {
     double fval;
@@ -937,6 +981,34 @@ struct PLUME{
         
         return sum ;
     }
+    
+    /*
+     
+    FIX ME:
+     HERE WE NEED TO ADAPT THIS CROSSING FUNCTION FOR THE CASE OF CRITICAL PATH NOT ELLIPSE.
+     
+    CrossData getCross (LineSegment segment, double nabla, double alpha, double dist, int inside)
+    {
+        Point init = *segment.start;
+        Point fini = *segment.end;
+        Point curr = init;
+        
+        Point motion = PointUtil::vector (nabla + alpha, dist/100);
+        
+        for (int i = 0;i < 100; i ++){
+            curr = curr + motion;
+            if (inside && concentration (curr) < THRESHOLD){
+                return CrossData (curr, 1);
+            }
+            else if (!inside && concentration (curr) > THRESHOLD)
+                return CrossData (curr, 1);
+        }
+        
+       // cout <<"Exception did not cross!"<<endl;
+       // exit (0);
+        
+        return CrossData ( Point (0,0), 0 );
+    }*/
   
     CrossData getCross (LineSegment segment, double nabla, double alpha, double dist, int inside)
     {
@@ -1132,6 +1204,13 @@ class Drone {
        //     if (droneIn)
          //       fprintf (out, "Line (%lf,%lf) (%lf,%lf)\n", polytope[N-2].x, polytope[N-2].y, polytope[N-1].x, polytope[N-1].y);
             Point currtoinit = polytope.back() - polytope[0];
+            
+            /*
+             FIX ME:
+                ADD A TERMINATING CONDITION, WHENEVER EITHER DRONE OF THE PAIR
+                REACHES A SOURCE, BUT HOW TO CHECK IF THEIR POSITION IS NEAR A SOURCE I.E. A LOCAL MAXIMA OF CONCENTRATION FUNCTION??
+             */
+            
             return (currtoinit.length() < INF) && (numCross > CROSSBOUND);
         }
         else
@@ -1147,12 +1226,12 @@ class DronePair {
         DronePair() {}
         DronePair(Drone droneA, Drone droneB) : droneA(droneA), droneB(droneB) {}
    
-        // FIXME 
-        bool MovePair(double alpha, double dist, PLUME &plume, int callSource) {
-            bool crossA = droneA.MoveDrone(alpha, dist, plume, callSource); 
-            bool crossB = droneB.MoveDrone(alpha, dist, plume, callSource); 
+        // FIXME
     
-            return crossA && crossB;
+        bool MovePair(double alpha, double dist, PLUME &plume, int callSource) {
+            bool moveA = droneA.MoveDrone (alpha, dist, plume, callSource);
+            bool moveB = droneB.MoveDrone (alpha, dist, plume, callSource);
+            return moveA & moveB;
         }
 };
 
@@ -1621,6 +1700,14 @@ void sketch_algorithm (double alpha)
     
     PLUME plume;
     
+    /*
+     FIX ME
+     
+     INITIALIZE THE ALGORITHM WITH DRONE PAIRS
+     AND APPROPRIATE LOCATION OF THE PAIRS
+    
+     */
+    
     plume.ovals = ell;
    // fprintf (out, "Ellipse (%lf,%lf) %lf %lf ", plume.ovals[0].center.x, plume.ovals[0].center.y, majorAxis, minorAxis);
     
@@ -1636,7 +1723,7 @@ void sketch_algorithm (double alpha)
     
     do{
         int iter = 0;
-       
+       //FIX ME: CHANGE A, B TO DRONE PAIRS AND IN THE FUNCTION CALL CROSS PLUME.
         while ((A.numCross + B.numCross == 0 || 1 == A.inside + B.inside) && !loopEnd)
         {
          //   cout << "testing TOKEN ... "<< A.position.x << " "<< A.position.y <<" 1"<<  endl;
