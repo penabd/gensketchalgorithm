@@ -1124,13 +1124,6 @@ struct PLUME{
 };
 
 
-/*
- FIX ME:
-    CREATE A CRITICAL PATH CLASS CONTAINING:
-    THE INITIAL CRITICAL POINT ON THE OUTER CONTOUR
-    THE DIFFERENCE BETWEEN VALUES OF SUCCESSIVE CONTOURS
-    THE STARTING AND ENDPOINT OF EACH SUCCESSIVE CONTOURS
- */
 
  struct criticalPath{
     Point stcriticalPoint;
@@ -1141,13 +1134,6 @@ struct PLUME{
     criticalPath(Point start, double epsilon, vector<Point> path, double res)
     : stcriticalPoint(start), diffepsilon(epsilon), criticalPathPoints(path), contourRes(res) {}
 
-    double curvature_derivative(Point& pointToSolve)
-    {  
-        // we use a sign change to determine whether we've crossed
-        // the critical point
-        // FIXME
-        return 1.0;
-    }
 
     bool checkCross (Point& start, Point& end)
     {
@@ -1185,7 +1171,7 @@ struct PLUME{
         //check sign change
         double startSign = gradientStart[0] * gradientStart[0] + gradientStart[1] * gradientStart[1];
         double endSign = gradientEnd[0] * gradientEnd[0] + gradientEnd[1] * gradientEnd[1];
-        if (startSign * endSign < 0) // FIXME: what if zero?
+        if (startSign * endSign < 0) 
         {
             return true;
         }
@@ -1249,7 +1235,7 @@ struct PLUME{
             // and will need to evaluate the critical path 
             // between two crtitical points
 
-            // FIXME: Need to determine size of region that we will get
+            // FIX ME: Need to determine size of region that we will get
             // contours for.
             vector<Point> localContourStart = getGaussianContours(startLevel, 
                                                              contourRes, 
