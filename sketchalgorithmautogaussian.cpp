@@ -171,200 +171,6 @@ public:
 };
 
 
-/*
- FIX ME:
-    CREATE A CRITICAL PATH CLASS CONTAINING:
-    THE INITIAL CRITICAL POINT ON THE OUTER CONTOUR
-    THE DIFFERENCE BETWEEN VALUES OF SUCCESSIVE CONTOURS
-    THE STARTING AND ENDPOINT OF EACH SUCCESSIVE CONTOURS
- */
-
-struct criticalPath{
-    Point stcriticalPoint;
-    double diffepsilon;
-    vector<Pair> contourInfo;
-    
-
-    
-    double curvature_derivative(Point& pointToSolve)
-    {  
-        // we use a sign change to determine whether we've crossed
-        // the critical point
-        // FIXME
-        return 1.0;
-    }
-
-    bool checkCross (Point& start, Point& end)
-    {
-        // Need to get the gradient around the initial point
-        // and the end point in order to compare sign of 
-        // the gradient
-        vector<Point> surroundingStartPoints;
-        surroundingStartPoints.push_back(start + Point(-diffepsilon,0)); //FIX ME - use diff epsilon?
-        surroundingStartPoints.push_back(start + Point(diffepsilon,0));
-        surroundingStartPoints.push_back(start + Point(0,-diffepsilon));
-        surroundingStartPoints.push_back(start + Point(0,diffepsilon));
-
-        vector<Point> surroundingEndPoints;
-        surroundingEndPoints.push_back(end + Point(-diffepsilon,0));
-        surroundingEndPoints.push_back(end + Point(diffepsilon,0));
-        surroundingEndPoints.push_back(end + Point(0,-diffepsilon));
-        surroundingEndPoints.push_back(end + Point(0,diffepsilon));
-
-        // get the gradient at the start and end points
-        vector<double> gradientStart = concentration_gradient_LSQ(surroundingStartPoints, start);
-        vector<double> gradientEnd = concentration_gradient_LSQ(surroundingEndPoints, end);
-
-        //check sign change
-        double startSign = gradientStart[0] * gradientStart[0] + gradientStart[1] * gradientStart[1];
-        double endSign = gradientEnd[0] * gradientEnd[0] + gradientEnd[1] * gradientEnd[1];
-        if (startSign * endSign < 0) // FIXME: what if zero?
-        {
-            return true;
-        }
-        else{
-            return false;
-        }
-    }
-
-    Point getCriticalPoint(<vector<Point>& localContour)
-    {
-    
-        // used to look for point that minimizes the curvature
-        // (critical point numerically)
-        auto findMinIndex = [](const std::vector<double>& v) -> size_t {
-            return std::distance(v.begin(), std::min_element(v.begin(), v.end()));
-        };
-    
-        vector<double> curvatures;
-
-        for(auto& point : localContour){
-
-            vector<Point> surroundingPoints;
-            //FIX ME - use diff epsilon?
-            surroundingPoints.push_back(point + Point(-diffepsilon,0)); 
-            surroundingPoints.push_back(point + Point(diffepsilon,0)); 
-            surroundingPoints.push_back(point + Point(0,-diffepsilon));
-            surroundingPoints.push_back(point + Point(0,diffepsilon));
-            surroundingPoints.push_back(point + Point(-diffepsilon,-diffepsilon));
-            surroundingPoints.push_back(point + Point(diffepsilon,-diffepsilon));
-            surroundingPoints.push_back(point + Point(-diffepsilon,diffepsilon));
-            surroundingPoints.push_back(point + Point(diffepsilon,diffepsilon));
-
-            double curvature = calc_curvature_LSQ(surroundingPoints, point); 
-            curvatures.push_back(curvature);
-        }
-
-        // get derivaties of curvature
-        vector<double> curvatureDerivatives;
-        curvatureDerivatives = compute_curvature_derivative(localContour, curvatures);
-
-
-        size_t minIndex = findMinIndex(curvatureDerivatives);
-        Point criticalPoint = localContour[minIndex];
-        return criticalPoint;
-    }
-
-    Point getCrossingPoint(Point& start, Point& end){
-
-        double startLevel = getGaussian(start);
-        double endLevel = getGaussian(end);
-
-        // used to look for point that minimizes the curvature
-        // (critical point numerically)
-        auto findMinIndex = [](const std::vector<double>& v) -> size_t {
-            return std::distance(v.begin(), std::min_element(v.begin(), v.end()));
-        };
-
-        // get contour lines within box around start and end
-        if (startLevel - endLevel > diffepsilon){
-            // we consider this to be two different contours
-            // and will need to evaluate the critical path 
-            // between two crtitical points
-
-            vector<Point> localContourStart = getGaussianContours(startLevel, 
-                                                             0.01, // FIX ME
-                                                             start.x - 1, //FIX ME
-                                                             start.x + 1, // FIX ME
-                                                             start.y - 1, // FIX ME
-                                                             start.y + 1); //FIX ME
-
-            vector<Point> localContourEnd = getGaussianContours(endLevel,
-                                                                0.01, // FIX ME
-                                                                end.x - 1, //FIX ME
-                                                                end.x + 1, // FIX ME
-                                                                end.y - 1, // FIX ME
-                                                                end.y + 1); //FIX ME
-         
-            // critical path is path between two critical points                                                      
-            Point criticalPointStart = getCriticalPoint(localContourStart);
-            Point criticalPointEnd = getCriticalPoint(localContourEnd);
-
-            // find intersection between critical path and start and end
-            Point startX1 = start.getX();
-            Point startY1 = start.getY();
-            Point EndX2 = end.getX();
-            Point EndY2 = end.getY();
-            Point cpX3 = criticalPointStart.getX();
-            Point cpY3 = criticalPointStart.getY();
-            Point cpX4 = criticalPointEnd.getX();
-            Point cpY4 = criticalPointEnd.getY();
-
-            double denom = (startX1 - startX2)*(cpY3 - cpY4) - (startY1 - EndY2)*(cpX3 - cpX4);
-            if (denom == 0){
-                cout << "Exception! No intersection!"<<endl;
-                exit(0);
-            }
-
-            double px = ((startX1 * EndY2 - startY1 * startX2) * (cpX3 - cpX4) - (startX1 - startX2) * (cpX3 * cpY4 - cpY3 * cpX4)) / denom;
-            double py = ((startX1 * EndY2 - startY1 * startX2) * (cpY3 - cpY4) - (startY1 - EndY2) * (cpX3 * cpY4 - cpY3 * cpX4)) / denom;
-            Point intersectionPoint(px, py);
-
-            return intersectionPoint;
-                
-
-        }else{
-            // we consider this to be a single contour
-            // and will need to evaluate where the critical point is
-            vector<Point> localContour = getGaussianContours(startLevel, 
-                                                             0.01, // FIX ME
-                                                             start.x - 1, //FIX ME
-                                                             start.x + 1, // FIX ME
-                                                             start.y - 1, // FIX ME
-                                                             start.y + 1); //FIX ME
-            Point criticalPoint = getCriticalPoint(localContour);
-            return criticalPoint;
-
-        }
-        
-    }
-    
-    CrossData getCross (LineSegment segment, double nabla, double alpha, double dist, int inside)
-    {
-       Point init = *segment.start;
-       Point fini = *segment.end;
-       Point curr = init;
-               
-       Point motion = PointUtil::vector (nabla + alpha, dist/100);
-       curr = curr + motion;
-       
-        //fix me
-        bool cross = checkCross(init, curr);
-        
-        //fix me: find crossing point using contourInfo.
-        if (cross)
-        {
-            Point crossPoint = getCrossingPoint(init, curr);
-            return CrossData (crossPoint, 1);
-        }
-        
-       
-      // cout <<"Exception did not cross!"<<endl;
-      // exit (0);
-       
-       return CrossData ( Point (0,0), 0 );
-   }
-};
 
 double get_dist (Point A, Point B)
 {
@@ -609,10 +415,10 @@ vector<Point> getGaussianContours(double level,
             Point p3(x, y + stepSize);
             Point p4(x + stepSize, y + stepSize);
 
-            double f1 = evaluateGaussianSum(p1);
-            double f2 = evaluateGaussianSum(p2);
-            double f3 = evaluateGaussianSum(p3);
-            double f4 = evaluateGaussianSum(p4);
+            double f1 = getGaussian(p1);
+            double f2 = getGaussian(p2);
+            double f3 = getGaussian(p3);
+            double f4 = getGaussian(p4);
 
             // Build the case index (bits: p1, p2, p4, p3)
             int idx = 0;
@@ -738,7 +544,7 @@ vector<vector<double> > inverse (vector<vector<double> > A)
 }
 
 vector<double> solve (vector<double> equation)
-{
+{   
     vector<double> solutions;
     double discriminant = 0;
     double a = equation[0];
@@ -746,14 +552,22 @@ vector<double> solve (vector<double> equation)
     double c = equation[2];
     
     discriminant = b*b - 4*a*c;
-    
-    if (discriminant < 0)
+   
+    // getting negatives discriminants that should be considered zero
+    // if considered zero, we have one solution 
+    if (abs(discriminant)  < 1e-9){ 
+        solutions.push_back ((-b) / (2*a));
+        solutions.push_back ((-b) / (2*a));
         return solutions;
+    }else if (discriminant < 0){
+        return solutions;
+    }else{
+        solutions.push_back ( (sqrt (discriminant) - b) / (2*a));
+        solutions.push_back ( (-sqrt (discriminant) - b) / (2*a));
+        
+        return solutions;
+    }
     
-    solutions.push_back ( (sqrt (discriminant) - b) / (2*a));
-    solutions.push_back ( (-sqrt (discriminant) - b) / (2*a));
-    
-    return solutions;
 }
 
 vector<double> polynomial_product(const vector<double>& p1, const vector<double>& p2) {
@@ -897,7 +711,6 @@ vector<vector<double> > get_pseudo_inv (vector<vector<double> > A)
         sigma.push_back (temp);
     }
     
-
     U = pseudo_inv;
     U = prod (U, V);
     U = prod (U, sigma);
@@ -1108,7 +921,7 @@ double calc_curvature(std::vector<double>& g,
 
 // The calc_curvature_LSQ function is a wrapper that calculates 
 // the curvature at a point using LSQ.
-std::pair<std::vector<double>, double> calc_curvature_LSQ(
+double calc_curvature_LSQ(
     std::vector<Point> surroundingPoints,
     Point& pointToSolve)
 {
@@ -1123,7 +936,7 @@ std::pair<std::vector<double>, double> calc_curvature_LSQ(
     double curvature = calc_curvature(gradB, H);
  
     // Return the computed gradient and curvature.
-    return std::make_pair(gradB, curvature);
+    return curvature;
 }
 
 // Helper function to compute numerical gradient
@@ -1167,6 +980,7 @@ std::vector<double> compute_curvature_derivative(const std::vector<Point>& path,
                                                  const std::vector<double>& k) {
 
     // Extract x and y coordinates from the path
+    size_t n = path.size();
     std::vector<double> x(n), y(n);
     for (size_t i = 0; i < n; ++i) {
         x[i] = path[i].x;
@@ -1181,7 +995,7 @@ std::vector<double> compute_curvature_derivative(const std::vector<Point>& path,
     // Compute ds (arc length differences)
     std::vector<double> diff_x = compute_diff(x);
     std::vector<double> diff_y = compute_diff(y);
-    size_t n = diff_x.size();
+    n = diff_x.size();
     std::vector<double> ds(n, 0.0);
 
     for (size_t i = 0; i < n; ++i) {
@@ -1249,33 +1063,6 @@ struct PLUME{
         return sum ;
     }
     
-    /*
-     
-    FIX ME:
-     HERE WE NEED TO ADAPT THIS CROSSING FUNCTION FOR THE CASE OF CRITICAL PATH NOT ELLIPSE.
-     
-    CrossData getCross (LineSegment segment, double nabla, double alpha, double dist, int inside)
-    {
-        Point init = *segment.start;
-        Point fini = *segment.end;
-        Point curr = init;
-        
-        Point motion = PointUtil::vector (nabla + alpha, dist/100);
-        
-        for (int i = 0;i < 100; i ++){
-            curr = curr + motion;
-            if (inside && concentration (curr) < THRESHOLD){
-                return CrossData (curr, 1);
-            }
-            else if (!inside && concentration (curr) > THRESHOLD)
-                return CrossData (curr, 1);
-        }
-        
-       // cout <<"Exception did not cross!"<<endl;
-       // exit (0);
-        
-        return CrossData ( Point (0,0), 0 );
-    }*/
   
     CrossData getCross (LineSegment segment, double nabla, double alpha, double dist, int inside)
     {
@@ -1334,6 +1121,222 @@ struct PLUME{
     {
         return ovals[P.second].edgeGradient (P.first);
     }*/
+};
+
+
+/*
+ FIX ME:
+    CREATE A CRITICAL PATH CLASS CONTAINING:
+    THE INITIAL CRITICAL POINT ON THE OUTER CONTOUR
+    THE DIFFERENCE BETWEEN VALUES OF SUCCESSIVE CONTOURS
+    THE STARTING AND ENDPOINT OF EACH SUCCESSIVE CONTOURS
+ */
+
+ struct criticalPath{
+    Point stcriticalPoint;
+    double diffepsilon;
+    vector<Point> criticalPathPoints;
+    double contourRes;
+    
+    criticalPath(Point start, double epsilon, vector<Point> path, double res)
+    : stcriticalPoint(start), diffepsilon(epsilon), criticalPathPoints(path), contourRes(res) {}
+
+    double curvature_derivative(Point& pointToSolve)
+    {  
+        // we use a sign change to determine whether we've crossed
+        // the critical point
+        // FIXME
+        return 1.0;
+    }
+
+    bool checkCross (Point& start, Point& end)
+    {
+        // Need to get the gradient around the initial point
+        // and the end point in order to compare sign of 
+        // the gradient
+        vector<Point> surroundingStartPoints;
+        for (int i = -1; i <= 1; i++) {
+            for (int j = -1; j <= 1; j++) {
+            if (i == 0 && j == 0) continue; 
+            if (i != 0 && j != 0) { 
+                Point offset = Point(i * diffepsilon, j * diffepsilon);
+                surroundingStartPoints.push_back(start + offset);
+            }
+            }
+        }
+
+        vector<Point> surroundingEndPoints;
+        for (int i = -1; i <= 1; i++) {
+            for (int j = -1; j <= 1; j++) {
+            if (i == 0 && j == 0) continue; 
+            if (i != 0 && j != 0) { 
+                Point offset = Point(i * diffepsilon, j * diffepsilon);
+                surroundingEndPoints.push_back(end + offset);
+            }
+            }
+        }
+
+        cout << "surroundingStartPoints =: " << surroundingStartPoints.size() << endl;
+
+        // get the gradient at the start and end points
+        vector<double> gradientStart = concentration_gradient_LSQ(surroundingStartPoints, start);
+        vector<double> gradientEnd = concentration_gradient_LSQ(surroundingEndPoints, end);
+
+        //check sign change
+        double startSign = gradientStart[0] * gradientStart[0] + gradientStart[1] * gradientStart[1];
+        double endSign = gradientEnd[0] * gradientEnd[0] + gradientEnd[1] * gradientEnd[1];
+        if (startSign * endSign < 0) // FIXME: what if zero?
+        {
+            return true;
+        }
+        else{
+            return false;
+        }
+    }
+
+    Point getCriticalPoint(vector<Point>& localContour)
+    {
+    
+        // used to look for point that minimizes the curvature
+        // (critical point numerically)
+        auto findMinIndex = [](const std::vector<double>& v) -> size_t {
+            return std::distance(v.begin(), std::min_element(v.begin(), v.end()));
+        };
+    
+        vector<double> curvatures;
+
+        for(auto& point : localContour){
+
+            vector<Point> surroundingPoints;
+            //FIX ME - use diff epsilon?
+            for(int i = -1; i < 2; i++){
+                for(int j = -1; j < 2; j++){
+                    if (i == 0 && j == 0) continue; 
+                    Point offset = Point(i*diffepsilon, j*diffepsilon);
+                    surroundingPoints.push_back(point + offset);
+                }
+            }
+
+            double curvature = calc_curvature_LSQ(surroundingPoints, point); 
+
+            curvatures.push_back(curvature);
+        }
+
+        // get derivaties of curvature
+        vector<double> curvatureDerivatives;
+        curvatureDerivatives = compute_curvature_derivative(localContour, curvatures);
+
+
+        size_t minIndex = findMinIndex(curvatureDerivatives);
+        Point criticalPoint = localContour[minIndex];
+        return criticalPoint;
+    }
+
+    Point getCrossingPoint(Point& start, Point& end){
+
+        double startLevel = getGaussian(start);
+        double endLevel = getGaussian(end);
+
+        // used to look for point that minimizes the curvature
+        // (critical point numerically)
+        auto findMinIndex = [](const std::vector<double>& v) -> size_t {
+            return std::distance(v.begin(), std::min_element(v.begin(), v.end()));
+        };
+
+        // get contour lines within box around start and end
+        if (startLevel - endLevel > diffepsilon){
+            // we consider this to be two different contours
+            // and will need to evaluate the critical path 
+            // between two crtitical points
+
+            // FIXME: Need to determine size of region that we will get
+            // contours for.
+            vector<Point> localContourStart = getGaussianContours(startLevel, 
+                                                             contourRes, 
+                                                             start.x - 1, //FIX ME
+                                                             start.x + 1, // FIX ME
+                                                             start.y - 1, // FIX ME
+                                                             start.y + 1); //FIX ME
+
+            vector<Point> localContourEnd = getGaussianContours(endLevel,
+                                                                contourRes,
+                                                                end.x - 1, //FIX ME
+                                                                end.x + 1, // FIX ME
+                                                                end.y - 1, // FIX ME
+                                                                end.y + 1); //FIX ME
+         
+            // critical path is path between two critical points                                                      
+            Point criticalPointStart = getCriticalPoint(localContourStart);
+            Point criticalPointEnd = getCriticalPoint(localContourEnd);
+
+            criticalPathPoints.push_back(criticalPointStart);
+            criticalPathPoints.push_back(criticalPointEnd);
+
+            // find intersection between critical path and start and end
+            double startX1 = start.getX();
+            double startY1 = start.getY();
+            double EndX2 = end.getX();
+            double EndY2 = end.getY();
+            double cpX3 = criticalPointStart.getX();
+            double cpY3 = criticalPointStart.getY();
+            double cpX4 = criticalPointEnd.getX();
+            double cpY4 = criticalPointEnd.getY();
+
+            double denom = (startX1 - EndX2)*(cpY3 - cpY4) - (startY1 - EndY2)*(cpX3 - cpX4);
+            if (denom == 0){
+                cout << "Exception! No intersection!"<<endl;
+                exit(0);
+            }
+
+            double px = ((startX1 * EndY2 - startY1 * EndX2) * (cpX3 - cpX4) - (startX1 - EndX2) * (cpX3 * cpY4 - cpY3 * cpX4)) / denom;
+            double py = ((startX1 * EndY2 - startY1 * EndX2) * (cpY3 - cpY4) - (startY1 - EndY2) * (cpX3 * cpY4 - cpY3 * cpX4)) / denom;
+            Point intersectionPoint(px, py);
+
+            return intersectionPoint;
+                
+
+        }else{
+            // we consider this to be a single contour
+            // and will need to evaluate where the critical point is
+            vector<Point> localContour = getGaussianContours(startLevel, 
+                                                             0.01, // FIX ME
+                                                             start.x - 1, //FIX ME
+                                                             start.x + 1, // FIX ME
+                                                             start.y - 1, // FIX ME
+                                                             start.y + 1); //FIX ME
+            Point criticalPoint = getCriticalPoint(localContour);
+            criticalPathPoints.push_back(criticalPoint);
+            return criticalPoint;
+
+        }
+        
+    }
+    
+    CrossData getCross (LineSegment segment, double nabla, double alpha, double dist, int inside)
+    {
+       Point init = *segment.start;
+       Point fini = *segment.end;
+       Point curr = init;
+               
+       Point motion = PointUtil::vector (nabla + alpha, dist/100);
+       curr = curr + motion;
+       
+        //fix me
+        bool cross = checkCross(init, curr);
+        
+        //fix me: find crossing point using contourInfo.
+        if (cross)
+        {
+            Point crossPoint = getCrossingPoint(init, curr);
+            return CrossData (crossPoint, 1);
+        }
+        
+       
+      // cout <<"Exception did not cross!"<<endl;
+      // exit (0);
+       
+       return CrossData ( Point (0,0), 0 );
+   }
 };
 
 int currentGaussian1;
@@ -2091,8 +2094,32 @@ void test_gen_sketch_additions(double alpha){
 
     // test curvature function
     cout << "Testing curvature function..." << endl;
-    std::pair<std::vector<double>, double> result = calc_curvature_LSQ(points, startPoint);
-    cout << "Result of curvature function: " << result.first[0] << " " << result.first[1] << " " << result.second << endl;
+    double result = calc_curvature_LSQ(points, startPoint);
+    cout << "Result of curvature function: " << result  << endl;
+
+    // test critical path
+    Point midpoint = Point((drone_start_A.getX() + drone_start_B.getX()) / 2,
+                           (drone_start_A.getY() + drone_start_B.getY()) / 2);
+    startPoint = Point(midpoint);
+    double epsilonValue = 0.1; // Example epsilon value
+    vector<Point> criticalPathStart = {startPoint}; 
+
+    // just checking if checkCross and getCrossingPoint run
+    cout << "Testing crossing path functions" << endl;
+    criticalPath cp(startPoint, epsilonValue, criticalPathStart, 0.01);
+    for (int i = 1; i < points.size(); i++) {
+       bool cross = cp.checkCross(points[i-1], points[i]);
+
+        if(cross){
+            Point crossingPoint = cp.getCrossingPoint(points[i-1], points[i]);
+            cout << "Crossing point: (" << crossingPoint.getX() << ", " 
+                 << crossingPoint.getY() << ")" << endl;
+        } else {
+            cout << "No crossing point found." << endl;
+
+        }
+    }
+
 
 }
 
