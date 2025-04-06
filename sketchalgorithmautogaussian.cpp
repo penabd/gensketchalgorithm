@@ -801,7 +801,6 @@ vector<double> gradient_LSQ (vector<Point> points)
 }
 
 
-//FIX ME - COME UP WITH NEW NAME 
 std::vector<double> concentration_gradient_LSQ(
     std::vector<Point> surroundingPoints,
     Point& pointToSolve) {
@@ -1194,7 +1193,6 @@ struct PLUME{
         for(auto& point : localContour){
 
             vector<Point> surroundingPoints;
-            //FIX ME - use diff epsilon?
             for(int i = -1; i < 2; i++){
                 for(int j = -1; j < 2; j++){
                     if (i == 0 && j == 0) continue; 
