@@ -1168,9 +1168,8 @@ struct PLUME{
         vector<double> gradientEnd = concentration_gradient_LSQ(surroundingEndPoints, end);
 
         //check sign change
-        double startSign = gradientStart[0] * gradientStart[0] + gradientStart[1] * gradientStart[1];
-        double endSign = gradientEnd[0] * gradientEnd[0] + gradientEnd[1] * gradientEnd[1];
-        if (startSign * endSign < 0) 
+        double dotProduct = gradientStart[0] * gradientEnd[0] + gradientStart[1] * gradientEnd[1];
+        if (dotProduct < 0) 
         {
             return true;
         }
@@ -1305,10 +1304,8 @@ struct PLUME{
        Point motion = PointUtil::vector (nabla + alpha, dist/100);
        curr = curr + motion;
        
-        //fix me
         bool cross = checkCross(init, curr);
         
-        //fix me: find crossing point using contourInfo.
         if (cross)
         {
             Point crossPoint = getCrossingPoint(init, curr);
