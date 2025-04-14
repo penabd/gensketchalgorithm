@@ -1129,12 +1129,14 @@ struct PLUME{
     double diffepsilon;
     vector<Point> criticalPathPoints;
     double contourRes;
+    static const int INSIDE = 1;
+    static const int OUTSIDE = 2;
     
     criticalPath(Point start, double epsilon, vector<Point> path, double res)
     : stcriticalPoint(start), diffepsilon(epsilon), criticalPathPoints(path), contourRes(res) {}
 
 
-    bool checkCross (Point& start, Point& end)
+    std::pair<Point,bool> checkCross (Point& start, Point& end)
     {
         // Need to get the gradient around the initial point
         // and the end point in order to compare sign of 
@@ -1169,12 +1171,17 @@ struct PLUME{
 
         //check sign change
         double dotProduct = gradientStart[0] * gradientEnd[0] + gradientStart[1] * gradientEnd[1];
+        std::pair<Point,bool> crossInfo;
         if (dotProduct < 0) 
         {
-            return true;
+            Point gradientEndPoint(gradientEnd[0], gradientEnd[1]);
+            crossInfo = std::make_pair(gradientEndPoint, true);
+            return crossInfo;
         }
         else{
-            return false;
+            Point gradientEndPoint(gradientEnd[0], gradientEnd[1]);
+            crossInfo = std::make_pair(gradientEndPoint, false);
+            return crossInfo;
         }
     }
 
@@ -1304,12 +1311,25 @@ struct PLUME{
        Point motion = PointUtil::vector (nabla + alpha, dist/100);
        curr = curr + motion;
        
-        bool cross = checkCross(init, curr);
+       std::pair<Point,bool> crossInfo = checkCross(init, curr);
+       Point gradientEnd = crossInfo.first;
+        bool cross = crossInfo.second;
+
         
         if (cross)
         {
             Point crossPoint = getCrossingPoint(init, curr);
-            return CrossData (crossPoint, 1);
+
+            // get inside outside info
+            double crossProd = crossPoint.getX() * gradientEnd.getY() - crossPoint.getY() * gradientEnd.getX();
+            int inside = 0;
+            if (crossProd > 0){
+                inside = INSIDE;
+            }else{
+                inside = OUTSIDE;
+            }
+
+            return CrossData (crossPoint, inside);
         }
         
        
@@ -1498,7 +1518,12 @@ class Drone {
         if (cross)
         {
             ++numCross;
-            inside = inside ^ 1;
+            if(cross == 1){
+                inside = cross;
+            }else{
+                inside = 0;
+            }
+                
            // if (abs(alpha) > epsilon)
              //   cout<<"Testing alpha " << inside<<endl;
             vector<double> gradient_vector;
@@ -2142,6 +2167,7 @@ void sketch_algorithm (double alpha)
                 
    //             cout << "testing Sync B... "<< B.position.x << " "<<B.position.y <<" "<<alpha<<" "<<B.nabla<< endl;
    //             cout << "testing Sync A... "<< A.position.x << " "<<A.position.y <<" "<<alpha<<" "<<A.nabla<< endl;
+            
             }
         }
     }while (!loopEnd);
@@ -2202,7 +2228,9 @@ void test_gen_sketch_additions(double alpha){
     cout << "Testing crossing path functions" << endl;
     criticalPath cp(startPoint, epsilonValue, criticalPathStart, 0.01);
     for (int i = 1; i < points.size(); i++) {
-       bool cross = cp.checkCross(points[i-1], points[i]);
+       std::pair<Point, bool> crossInfo = cp.checkCross(points[i-1], points[i]);
+       bool cross = crossInfo.second;
+
 
         if(cross){
             Point crossingPoint = cp.getCrossingPoint(points[i-1], points[i]);
