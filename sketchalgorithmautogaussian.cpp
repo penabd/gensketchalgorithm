@@ -1456,6 +1456,121 @@ class Drone {
          //       fprintf (out, "Line (%lf,%lf) (%lf,%lf)\n", polytope[N-2].x, polytope[N-2].y, polytope[N-1].x, polytope[N-1].y);
             Point currtoinit = polytope.back() - polytope[0];
             
+            
+            return (currtoinit.length() < INF) && (numCross > CROSSBOUND);
+        }
+        else
+            return false ;
+    }
+
+    // FIXME 
+    bool MoveDrone (double alpha, double dist, criticalPath &cp, int callSource)
+    {
+        Point motion;
+        Point nextPosition;
+        vector<Point> points;
+        points.push_back (position);
+        
+        motion = PointUtil::vector (nabla + alpha, dist);
+        nextPosition = position + motion;
+        
+        points.push_back (nextPosition);
+        LineSegment dronemotion = LineSegment (position, nextPosition);
+        
+        distTraversed += dist;
+        
+        if (abs(nextPosition.x) > 3 || abs(nextPosition.y) > 3)
+            cout << "position exception! "<<endl;
+        
+       // bool cross = plume.crossesEdge (dronemotion);
+        CrossData cd = cp.getCross (dronemotion, nabla, alpha, dist, inside);
+      //  CrossData cd = plume.getCross (dronemotion);
+        Point crossingPoint = cd.first;
+        
+        points.push_back (crossingPoint);
+        
+        swap (points[1], points[2]);
+        int cross = cd.second; //changed to boolean if 1 then crossed, 0 did not cross.
+     //   if (abs(crossingPoint.x) > 1e-9 || abs (crossingPoint.y) > 1e-9)
+       //     cross = 1;
+       // if (cross)
+        //    cout<<cross<<  " cross "<<crossingPoint.x << " " <<crossingPoint.y<<endl;
+        if (cross)
+        {
+            ++numCross;
+            inside = inside ^ 1;
+           // if (abs(alpha) > epsilon)
+             //   cout<<"Testing alpha " << inside<<endl;
+            vector<double> gradient_vector;
+            
+          //  if (cd.second != currentGaussian1)
+            //    gradient_vector = get_Gaussian_vector( points, cd.second);
+           // else
+                gradient_vector = gradient_LSQ (points);
+            
+       //     last_gradient = gradient_vector;
+       //     Point gradient_shift = PointUtil::vector (1.0/100,1);
+       //     last_gradient[0] += gradient_shift.x;
+       //     last_gradient[1] += gradient_shift.y;
+            double angle = getAngle (gradient_vector);
+            
+           // if (!callSource)
+             //   cout<<"Called from CrossPlume "<<endl;
+            
+            angle = gradient_modulo (angle);
+            if (droneIn)
+            {
+          //      cout<<gradient_vector[0]<<" "<<gradient_vector[1] << " gradient vector,Points "<<crossingPoint.x<<" "<<crossingPoint.y<<endl;
+             //   cout<<position.x<<" "<<position.y<<" "<<nextPosition.x<<" "<<nextPosition.y<<endl;
+            }
+            double gradient = angle + PI/2 ;
+       //     cout<<angle<<" angle "<<points.size()<<" "<<gradient<< endl;
+            gradient = gradient_modulo (gradient);
+            
+            Point checkPoint = PointUtil::vector (gradient, dist);
+           
+      //      cout<<"Checkpoint "<<checkPoint.x<<" "<<checkPoint.y<<endl;
+
+            checkPoint = crossingPoint + checkPoint;
+           
+            
+        //    cout<<"Checkpoint "<<checkPoint.x<<" "<<checkPoint.y<<endl;
+            
+            int orient ;
+            if (inside)
+                orient = PointUtil::CLOCKWISE;
+            else
+                orient = PointUtil::COUNTERCLOCKWISE;
+           // else
+             //   orient = (inside) ? (PointUtil::COUNTERCLOCKWISE) : (PointUtil::CLOCKWISE);
+            
+          //  if (callSource == 0)
+        //        orient = orient ^ 1;
+            
+            
+            if (PointUtil::orientation (position, crossingPoint, checkPoint) != orient)
+                reverse (gradient);
+
+            angleTurned += changeGradient (nabla + alpha, gradient);
+            nabla = gradient;
+            
+        //    if (droneIn && !inside)
+          //          cout << crossingPoint.x <<  " crossed here "<< crossingPoint.y <<  " " <<droneIn<<" inside: "<<inside<<" "<<" "<< gradient<< endl;
+         }
+        last = position;
+        position = nextPosition;
+        if (numCross)
+            polytope.push_back (position);
+      //  if (numCross == 1 && cross)
+        //    polytope.push_back (cd.first);
+    
+        if (polytope.size() > 1)
+        {
+            int N = polytope.size();
+       //     if (droneIn)
+         //       fprintf (out, "Line (%lf,%lf) (%lf,%lf)\n", polytope[N-2].x, polytope[N-2].y, polytope[N-1].x, polytope[N-1].y);
+            Point currtoinit = polytope.back() - polytope[0];
+            
             /*
              FIX ME:
                 ADD A TERMINATING CONDITION, WHENEVER EITHER DRONE OF THE PAIR
@@ -1469,7 +1584,6 @@ class Drone {
     }
 };
 
-// TODO
 class DronePair {
     public:
         Drone droneA, droneB;
@@ -1477,12 +1591,11 @@ class DronePair {
         DronePair() {}
         DronePair(Drone droneA, Drone droneB) : droneA(droneA), droneB(droneB) {}
    
-        // FIXME
     
-        bool MovePair(double alpha, double dist, PLUME &plume, int callSource) {
-            bool moveA = droneA.MoveDrone (alpha, dist, plume, callSource);
-            bool moveB = droneB.MoveDrone (alpha, dist, plume, callSource);
-            return moveA & moveB;
+        bool MovePair(double alpha, double dist, criticalPath &cp, int callSource) {
+            bool moveA = droneA.MoveDrone (alpha, dist, cp, callSource);
+            bool moveB = droneB.MoveDrone (alpha, dist, cp, callSource);
+            return moveA || moveB;
         }
 };
 
