@@ -1135,54 +1135,97 @@ struct PLUME{
     criticalPath(Point start, double epsilon, vector<Point> path, double res)
     : stcriticalPoint(start), diffepsilon(epsilon), criticalPathPoints(path), contourRes(res) {}
 
-
-    std::pair<Point,bool> checkCross (Point& start, Point& end)
+    // FIX ME: compare vectors from two drones 
+    std::pair<int,bool> checkCross (Drone& droneA, Drone& droneB)
     {
         // Need to get the gradient around the initial point
         // and the end point in order to compare sign of 
         // the gradient
-        vector<Point> surroundingStartPoints;
+        vector<Point> surroundingDroneAPoints;
         for (int i = -1; i <= 1; i++) {
             for (int j = -1; j <= 1; j++) {
             if (i == 0 && j == 0) continue; 
             if (i != 0 && j != 0) { 
                 Point offset = Point(i * diffepsilon, j * diffepsilon);
-                surroundingStartPoints.push_back(start + offset);
+                surroundingDroneAPoints.push_back(droneA.position + offset);
             }
             }
         }
 
-        vector<Point> surroundingEndPoints;
+        vector<Point> surroundingDroneBPoints;
         for (int i = -1; i <= 1; i++) {
             for (int j = -1; j <= 1; j++) {
             if (i == 0 && j == 0) continue; 
             if (i != 0 && j != 0) { 
                 Point offset = Point(i * diffepsilon, j * diffepsilon);
-                surroundingEndPoints.push_back(end + offset);
+                surroundingDroneBPoints.push_back(droneB.position + offset);
             }
             }
         }
 
-        cout << "surroundingStartPoints =: " << surroundingStartPoints.size() << endl;
+        // get the gradient for each drone
+        vector<double> gradientA = concentration_gradient_LSQ(surroundingDroneAPoints, droneA.position);
+        vector<double> gradientB = concentration_gradient_LSQ(surroundingDroneBPoints, droneB.position);
 
-        // get the gradient at the start and end points
-        vector<double> gradientStart = concentration_gradient_LSQ(surroundingStartPoints, start);
-        vector<double> gradientEnd = concentration_gradient_LSQ(surroundingEndPoints, end);
+
+        //get tangent vector, which is normal to the gradient vector
+        vector<double> tangentA(-gradientA[1], gradientA[0]);
+        vector<double> tangentB(-gradientB[1], gradientB[0]);
+
+        // get direction of movement ?
+        // Point droneADirection = droneA.lastMotion.getEnd() - droneA.lastMotion.getStart();
+        // Point droneBDirection = droneB.lastMotion.getEnd() - droneB.lastMotion.getStart();
 
         //check sign change
-        double dotProduct = gradientStart[0] * gradientEnd[0] + gradientStart[1] * gradientEnd[1];
-        std::pair<Point,bool> crossInfo;
-        if (dotProduct < 0) 
-        {
-            Point gradientEndPoint(gradientEnd[0], gradientEnd[1]);
-            crossInfo = std::make_pair(gradientEndPoint, true);
-            return crossInfo;
+        double dotProductA = tangentA[0] * tangentB[0] + tangentA[1] * tangentB[1];
+
+        // Determine which drone crossed the contour if dot product
+        // is negative
+        if(dotProduct < 0){ 
+            vector<Point> surroundingDroneALastPoints;
+            for (int i = -1; i <= 1; i++) {
+                for (int j = -1; j <= 1; j++) {
+                if (i == 0 && j == 0) continue; 
+                if (i != 0 && j != 0) { 
+                    Point offset = Point(i * diffepsilon, j * diffepsilon);
+                    surroundingDroneALastPoints.push_back(droneA.last + offset);
+                }
+                }
+            }
+    
+            vector<Point> surroundingDroneBLastPoints;
+            for (int i = -1; i <= 1; i++) {
+                for (int j = -1; j <= 1; j++) {
+                if (i == 0 && j == 0) continue; 
+                if (i != 0 && j != 0) { 
+                    Point offset = Point(i * diffepsilon, j * diffepsilon);
+                    surroundingDroneBLastPoints.push_back(droneB.last + offset);
+                }
+                }
+            }
+
+            // get the gradient at each location for the drone
+            vector<double> gradientLastA = concentration_gradient_LSQ(surroundingDroneALastPoints, droneA.last);
+            vector<double> gradientLastB = concentration_gradient_LSQ(surroundingDroneBLastPoints, droneB.last);
+
+            double dotProductLastA = gradientLastA[0] * gradientA[0] + gradientLastA[1] * gradientA[1];
+            double dotProductLastB = gradientLastB[0] * gradientB[0] + gradientLastB[1] * gradientB[1];
+
+            if(dotProductLastA < 0 && dotProductLastB < 0){
+                cerr << "Both crossed?" << endl;
+                return std::make_pair(-1, true);
+            }else if (dotProductLastA < 0){
+                return std::make_pair(1, true);
+            }else if (dotProductLastB < 0){
+                return std::make_pair(2, true);
+            }else{
+                cerr << "Neither crossed? Something went wrong" << endl;
+                return std::make_pair(-1, true);
+            }
+        }else{
+            return std::make_pair(0, false);
         }
-        else{
-            Point gradientEndPoint(gradientEnd[0], gradientEnd[1]);
-            crossInfo = std::make_pair(gradientEndPoint, false);
-            return crossInfo;
-        }
+
     }
 
     Point getCriticalPoint(vector<Point>& localContour)
@@ -1243,17 +1286,17 @@ struct PLUME{
             // contours for.
             vector<Point> localContourStart = getGaussianContours(startLevel, 
                                                              contourRes, 
-                                                             start.x - 1, //FIX ME
-                                                             start.x + 1, // FIX ME
-                                                             start.y - 1, // FIX ME
-                                                             start.y + 1); //FIX ME
+                                                             start.x - 1, 
+                                                             start.x + 1, 
+                                                             start.y - 1, 
+                                                             start.y + 1); 
 
             vector<Point> localContourEnd = getGaussianContours(endLevel,
                                                                 contourRes,
-                                                                end.x - 1, //FIX ME
-                                                                end.x + 1, // FIX ME
-                                                                end.y - 1, // FIX ME
-                                                                end.y + 1); //FIX ME
+                                                                end.x - 1,
+                                                                end.x + 1,
+                                                                end.y - 1,
+                                                                end.y + 1);
          
             // critical path is path between two critical points                                                      
             Point criticalPointStart = getCriticalPoint(localContourStart);
@@ -1302,41 +1345,113 @@ struct PLUME{
         
     }
     
-    CrossData getCross (LineSegment segment, double nabla, double alpha, double dist, int inside)
+    CrossData getCross (DronePair dpA, DronePair dpB, double alpha, double dist)
     {
-       Point init = *segment.start;
-       Point fini = *segment.end;
-       Point curr = init;
-               
+       /* FIX ME
+        - removed inside, nabla, arg and will take it from dones passed
+        - alpha and dist can stay
+        - line segment data stored in each drone "lastMotion"
+       */
+
+       // get info needed from drones
+       Drone droneAA = dpA.droneA;
+       Drone droneAB = dpA.droneB;
+       Drone droneBA = dpB.droneA;
+       Drone droneBB = dpB.droneB;
+
+       Point droneAA_init = droneAA.lastMotion.start;
+       Point droneAB_init = droneAB.lastMotion.start;
+       Point droneBA_init = droneBA.lastMotion.start; 
+       Point droneBB_init = droneBB.lastMotion.start;
+
+       Point curr = init; // FIX ME/
+       Point droneAA_curr = droneAA_init;
+       Point droneAB_curr = droneAB_init;
+       Point droneBA_curr = droneBA_init;
+       Point droneBB_curr = droneBB_init;
+
+
+       // FIX ME:  how to check cross for
+       // each drone?
        Point motion = PointUtil::vector (nabla + alpha, dist/100);
-       curr = curr + motion;
        
-       std::pair<Point,bool> crossInfo = checkCross(init, curr);
-       Point gradientEnd = crossInfo.first;
-        bool cross = crossInfo.second;
+       for(int i = 0; i < 100; i++){
+            droneAA_curr += motion;
+            droneAB_curr += motion;
+            droneBA_curr += motion;
+            droneBB_curr += motion;
 
-        
-        if (cross)
-        {
-            Point crossPoint = getCrossingPoint(init, curr);
+            std::pair<int,bool> crossInfoFirstPair = checkCross(droneAA, droneBA);
+            std::pair<int,bool> crossInfoSecondPair = checkCross(droneAB, droneBB);
+    
+            // FIX ME: We need to know which drone is inside or outside?
+            if(crossInfoFirstPair.second)
+            {
+                if(crossInfoFirstPair.first == 1){
+                    Point crossPoint = getCrossingPoint(droneAA_init,
+                                                        droneAA_curr);
+                }else if (crossInfoFirstPair.first == 2){
+                    Point crossPoint = getCrossingPoint(droneBA_init,
+                                                        droneBA_curr);
 
-            // get inside outside info
-            double crossProd = crossPoint.getX() * gradientEnd.getY() - crossPoint.getY() * gradientEnd.getX();
-            int inside = 0;
-            if (crossProd > 0){
-                inside = INSIDE;
-            }else{
-                inside = OUTSIDE;
+                }
+    
+                // // FIX ME: get clockwise/counterclockwise (inside/outside) info (?)
+                // double crossProd = crossPoint.getX() * gradientEnd.getY() - crossPoint.getY() * gradientEnd.getX();
+                // int inside = 0;
+                // if (crossProd > 0){
+                //     inside = INSIDE;
+                // }else{
+                //     inside = OUTSIDE;
+                // }
+    
+                return CrossData (crossPoint, -1);
+            }else if(crossInfoSecondPair.second){
+                if(crossInfoSecondPair.first == 1){
+                    Point crossPoint = getCrossingPoint(droneAB_init,
+                                                        droneAB_curr);
+                }else if (crossInfoSecondPair.first == 2){
+                    Point crossPoint = getCrossingPoint(droneBB_init,
+                                                        droneBB_curr);
+                }
+    
+                // // FIX ME: get clockwise/counterclockwise (inside/outside) info (?)
+                // double crossProd = crossPoint.getX() * gradientEnd.getY() - crossPoint.getY() * gradientEnd.getX();
+                // int inside = 0;
+                // if (crossProd > 0){
+                //     inside = INSIDE;
+                // }else{
+                //     inside = OUTSIDE;
+                // }
+    
+                return CrossData (crossPoint, -1);
             }
-
-            return CrossData (crossPoint, inside);
-        }
-        
-       
-      // cout <<"Exception did not cross!"<<endl;
-      // exit (0);
+       }
        
        return CrossData ( Point (0,0), 0 );
+   }
+
+   bool foundSource(DronePair dpA, DronePair dpB){
+        // FIX ME: if drone has encountered a concave contour we 
+        // know its a source
+
+        double crossProdLast = dpA.getLastContourGradient()[0] * dpB.getLastContourGradient()[1] - 
+                               dpA.getLastContourGradient()[1] * dpB.getLastContourGradient()[0];
+
+        double crossProdCurrent = dpA.getCurrentContourGradient()[0] * dpB.getCurrentContourGradient()[1] - 
+                               dpA.getCurrentContourGradient()[1] * dpB.getCurrentContourGradient()[0];
+        
+        // check if the cross product of the last and current gradient
+        // is negative, which indicates that the contours have
+        // changed from concave to convex or vice versa
+        if (crossProdLast * crossProdCurrent < 0){
+            // double check if the cross product is negative
+            // and positive where expected?
+            return true;
+        }
+        return false;
+
+
    }
 };
 
@@ -1352,7 +1467,10 @@ class Drone {
     double angleTurned;
     double distTraversed;
     int currentGaussian;
+    LineSegment lastMotion; // FIX ME ; can delete
     vector<Point> polytope;
+    vector<double> lastContourGradient;
+    vector<double> currentContourGradient;
     
     Drone (){}
     Drone (Point P1, Point P2, int in, double nab, bool flag)
@@ -1366,6 +1484,9 @@ class Drone {
         distTraversed = 0;
         numCross = 0;
         currentGaussian = 0;
+        lastContourGradient = vector<double> (0,0); // FIX ME - how to initialize these?
+        currentContourGradient = vector<double> (0,0);
+
      //   polytope.push_back (position);
     }
     
@@ -1483,144 +1604,190 @@ class Drone {
             return false ;
     }
 
-    // FIXME 
-    bool MoveDrone (double alpha, double dist, criticalPath &cp, int callSource)
+    // Fixed implementation
+    void MoveDrone (double alpha, double dist, 
+                                    criticalPath &cp, int callSource)
     {
         Point motion;
         Point nextPosition;
-        vector<Point> points;
-        points.push_back (position);
-        
+    
+        // Calculate motion vector and next position
         motion = PointUtil::vector (nabla + alpha, dist);
         nextPosition = position + motion;
         
-        points.push_back (nextPosition);
+        // points.push_back (nextPosition);
         LineSegment dronemotion = LineSegment (position, nextPosition);
         
+        // Update distance traversed
         distTraversed += dist;
         
+        // Check for position exception
         if (abs(nextPosition.x) > 3 || abs(nextPosition.y) > 3)
             cout << "position exception! "<<endl;
-        
-       // bool cross = plume.crossesEdge (dronemotion);
-        CrossData cd = cp.getCross (dronemotion, nabla, alpha, dist, inside);
-      //  CrossData cd = plume.getCross (dronemotion);
-        Point crossingPoint = cd.first;
-        
-        points.push_back (crossingPoint);
-        
-        swap (points[1], points[2]);
-        int cross = cd.second; //changed to boolean if 1 then crossed, 0 did not cross.
-     //   if (abs(crossingPoint.x) > 1e-9 || abs (crossingPoint.y) > 1e-9)
-       //     cross = 1;
-       // if (cross)
-        //    cout<<cross<<  " cross "<<crossingPoint.x << " " <<crossingPoint.y<<endl;
-        if (cross)
-        {
-            ++numCross;
-            if(cross == 1){
-                inside = cross;
-            }else{
-                inside = 0;
+
+        last = position;
+        position = nextPosition;
+
+        // Calculate gradient using criticalPath
+        vector<Point> surroundingPoints;
+        for (int i = -1; i <= 1; i++) {
+            for (int j = -1; j <= 1; j++) {
+                if (i == 0 && j == 0) continue; 
+                if (i != 0 && j != 0) { 
+                    // FIX ME: do we use diff epsilon here?
+                    Point offset = Point(i * cp.diffepsilon, j * cp.diffepsilon);
+                    surroundingPoints.push_back(position + offset);
+                }
             }
+        }
+
+        lastContourGradient = currentContourGradient;
+        vector<double> gradient = cp.concentration_gradient_LSQ(surroundingPoints, position);
+        currentContourGradient = gradient;
+    }
+
+};
+
+class DronePair {
+    public:
+        Drone droneA, droneB;
+        bool foundSource;
+        int inside; // FIX ME
+        double nabla; // FIX ME
+        double angleTurned; // FIX ME
+        Point position; // FIX ME
+        Point last; // FIX ME
+        int numCross; // FIXME
+        double pairDist;
+        vector<double> currentContourGradient; //FIX ME
+        vector<double> lastContourGradient; //FIX ME
+
+
+    
+        DronePair() {}
+        DronePair(Drone droneA, Drone droneB, double pairDist) : droneA(droneA), droneB(droneB), pairDist(pairDist) {}
+
+        void setNabla(double nabla) {
+            this->nabla = nabla;
+            droneA.nabla = nabla;
+            droneB.nabla = nabla;
+        }
+
+        double getNabla() {
+            return nabla;
+        }
+
+        void setNumCross(int numCross) {
+            this->numCross = numCross;
+            droneA.numCross = numCross;
+            droneB.numCross = numCross;
+        }
+
+        int getNumCross() {
+            return numCross;
+        }
+
+        void setAngleTurned(double angleTurned) {
+            this->angleTurned = angleTurned;
+            droneA.angleTurned = angleTurned;
+            droneB.angleTurned = angleTurned;
+        }
+
+        double getAngleTurned() {
+            return angleTurned;
+        }
+
+        void setPosition(Point position) {
+            this->position = position;
+            droneA.position = position;
+            // FIX ME
+            droneB.position = position - Point(sqrt(pairDist), sqrt(pairDist));
+        }
+        
+        Point getPosition() {
+            return droneA.position;
+        }
+
+        void setLast(Point last) {
+            this->last = last;
+            droneA.last = last;
+            // FIX ME
+            droneB.last = last - Point(sqrt(pairDist), sqrt(pairDist));
+        }
+
+        Point getLast() {
+            return droneA.last;
+        }
+
+        void setInside(int inside) {
+            this->inside = inside;
+            droneA.inside = inside;
+            droneB.inside = inside;
+        }
+
+        int getInside() {
+            return droneA.inside;
+        }
+
+        vector<double> getCurrentContourGradient() {
+            return droneA.currentContourGradient;
+        }
+
+        vector<double> getLastContourGradient() {
+            return droneA.lastContourGradient;
+        }
+
+
+        void MovePair(double alpha, double dist, criticalPath &cp, int callSource) {
+            droneA.MoveDrone(alpha, dist, cp, callSource); 
+            droneB.MoveDrone(alpha, dist, cp, callSource);
+
+        }
+
+        // FIX ME: add function to deal with crossing and orientation
+        bool LearnGradient(Point crossingPoint, criticalPath &cp) {
+           
+            //FIX ME: may need to set differently for each drone 
+            setNumCross(getNumCross() + 1); 
+            inside = inside ^ 1;
                 
-           // if (abs(alpha) > epsilon)
-             //   cout<<"Testing alpha " << inside<<endl;
             vector<double> gradient_vector;
             
-          //  if (cd.second != currentGaussian1)
-            //    gradient_vector = get_Gaussian_vector( points, cd.second);
-           // else
-                gradient_vector = gradient_LSQ (points);
-            
-       //     last_gradient = gradient_vector;
-       //     Point gradient_shift = PointUtil::vector (1.0/100,1);
-       //     last_gradient[0] += gradient_shift.x;
-       //     last_gradient[1] += gradient_shift.y;
-            double angle = getAngle (gradient_vector);
-            
-           // if (!callSource)
-             //   cout<<"Called from CrossPlume "<<endl;
-            
-            angle = gradient_modulo (angle);
-            if (droneIn)
-            {
-          //      cout<<gradient_vector[0]<<" "<<gradient_vector[1] << " gradient vector,Points "<<crossingPoint.x<<" "<<crossingPoint.y<<endl;
-             //   cout<<position.x<<" "<<position.y<<" "<<nextPosition.x<<" "<<nextPosition.y<<endl;
-            }
-            double gradient = angle + PI/2 ;
-       //     cout<<angle<<" angle "<<points.size()<<" "<<gradient<< endl;
-            gradient = gradient_modulo (gradient);
-            
-            Point checkPoint = PointUtil::vector (gradient, dist);
-           
-      //      cout<<"Checkpoint "<<checkPoint.x<<" "<<checkPoint.y<<endl;
+            // FIX ME !!!!
+            vector<Point> points;
+            points.push_back(cp.criticalPathPoints.back());
+            gradient_vector = gradient_LSQ(points);
 
+            double angle = getAngle (gradient_vector);
+
+            angle = gradient_modulo (angle);
+
+            double gradient = angle + PI/2 ;
+            gradient = gradient_modulo (gradient);
+            Point checkPoint = PointUtil::vector (gradient, dist);
             checkPoint = crossingPoint + checkPoint;
-           
-            
-        //    cout<<"Checkpoint "<<checkPoint.x<<" "<<checkPoint.y<<endl;
-            
-            int orient ;
+                    
+            // FIX ME: Do we need to double check this?
+            int orient;
             if (inside)
                 orient = PointUtil::CLOCKWISE;
             else
                 orient = PointUtil::COUNTERCLOCKWISE;
-           // else
-             //   orient = (inside) ? (PointUtil::COUNTERCLOCKWISE) : (PointUtil::CLOCKWISE);
-            
-          //  if (callSource == 0)
-        //        orient = orient ^ 1;
-            
             
             if (PointUtil::orientation (position, crossingPoint, checkPoint) != orient)
                 reverse (gradient);
 
             angleTurned += changeGradient (nabla + alpha, gradient);
             nabla = gradient;
-            
-        //    if (droneIn && !inside)
-          //          cout << crossingPoint.x <<  " crossed here "<< crossingPoint.y <<  " " <<droneIn<<" inside: "<<inside<<" "<<" "<< gradient<< endl;
-         }
-        last = position;
-        position = nextPosition;
-        if (numCross)
-            polytope.push_back (position);
-      //  if (numCross == 1 && cross)
-        //    polytope.push_back (cd.first);
-    
-        if (polytope.size() > 1)
-        {
-            int N = polytope.size();
-       //     if (droneIn)
-         //       fprintf (out, "Line (%lf,%lf) (%lf,%lf)\n", polytope[N-2].x, polytope[N-2].y, polytope[N-1].x, polytope[N-1].y);
-            Point currtoinit = polytope.back() - polytope[0];
-            
-            /*
-             FIX ME:
-                ADD A TERMINATING CONDITION, WHENEVER EITHER DRONE OF THE PAIR
-                REACHES A SOURCE, BUT HOW TO CHECK IF THEIR POSITION IS NEAR A SOURCE I.E. A LOCAL MAXIMA OF CONCENTRATION FUNCTION??
-             */
-            
-            return (currtoinit.length() < INF) && (numCross > CROSSBOUND);
-        }
-        else
-            return false ;
-    }
-};
+                
+            last = position;
+            position = nextPosition;
 
-class DronePair {
-    public:
-        Drone droneA, droneB;
-    
-        DronePair() {}
-        DronePair(Drone droneA, Drone droneB) : droneA(droneA), droneB(droneB) {}
-   
-    
-        bool MovePair(double alpha, double dist, criticalPath &cp, int callSource) {
-            bool moveA = droneA.MoveDrone (alpha, dist, cp, callSource);
-            bool moveB = droneB.MoveDrone (alpha, dist, cp, callSource);
-            return moveA || moveB;
+            // FIX ME - do we need the polytope?
+            if (numCross)
+                polytope.push_back (position);
+
+            // FIX ME: return what?
         }
 };
 
@@ -1921,6 +2088,29 @@ void Sync (Drone &A, Drone &B, double alpha, double dist, PLUME &plume)
     return ;
 }
 
+void Sync (DronePair &A, DronePair &B, double alpha, double dist, criticalPath &cp)
+{
+    Point v;
+    
+    if (alpha > 0)
+        v = PointUtil::vector (A.getNabla() + alpha - PI/2, DIST * epsilon);
+    else
+        v = PointUtil::vector (A.getNabla() + alpha + PI/2, DIST * epsilon);
+    
+    Point nextPosition = A.getPosition() + v;
+    B.setLast(nextPosition);
+    B.setPosition(nextPosition);
+    LineSegment dronemotion = LineSegment (B.getLast(), B.getPosition());
+ //   if (abs(B.nabla - A.nabla) < 1e-9 &&  plume.getCross(dronemotion, B.nabla, alpha, dist, B.inside).second == 1)
+   //     B.inside = B.inside ^ 1;
+    B.setNabla(A.nabla);
+   // B.inside = A.inside;
+    B.polytope.push_back (nextPosition); 
+    //ignoring angle turned during sync.
+    
+    return ;
+}
+
 string check (Point P){
     double A = majorAxis;
     double B = minorAxis;
@@ -2064,6 +2254,86 @@ bool CrossPlume (Drone &A, Drone &B, double alpha, PLUME &plume)
     return endHere;
 }
 
+bool CrossCriticalPath(DronePair &A, DronePair &B, double alpha, criticalPath &cp)
+{
+    Point start_pos = A.getLast(); // FIX ME?
+
+    int crossing = A.inside; // FIX ME
+    bool orient = true ;
+    double alphainitial = alpha;
+    bool endHere = false;
+    
+    int iterate = 1000;
+    
+    do{
+        endHere = endHere || A.MovePair(alpha, epsilon * epsilon, cp, 0);
+        
+        // FIX ME: determine orientation?
+        if (PointUtil::orientation(A.getLast(), A.getPosition(), start_pos) == PointUtil::CLOCKWISE && alpha > 0)
+            orient = false ;
+        if (PointUtil::orientation(A.getLast(), A.getPosition(), start_pos) == PointUtil::COUNTERCLOCKWISE && alpha < 0)
+            orient = false ;
+
+        if (alpha > 0)
+            alpha += epsilon;
+        else
+            alpha -= epsilon;
+        A.setAngleTurned(A.getAngleTurned() + abs (alphainitial)); // FIXME
+
+        iterate--;
+        if (iterate < 0){
+            print_data (A,B);
+            exit (0);
+        }
+    }while (crossing == A.inside && orient && !endHere);
+        
+    if (crossing == A.inside && !endHere){
+        A.polytope.pop_back (); // FIX ME: ?
+        A.setPosition(A.getLast());
+        A.setAngleTurned(A.getAngleTurned() - abs (alphainitial));
+        double dx = start_pos.getX () - A.getPosition().getX();
+        double dy = start_pos.getY () - A.getPosition().getY();
+        double gradient = atan2 (dy, dx);
+        
+        Point d1 = start_pos - A.getPosition();
+        Point motion;
+        if (d1.length() > epsilon*epsilon)
+            motion = PointUtil::vector (gradient, epsilon * epsilon);
+        else
+            motion = PointUtil::vector (gradient, d1.length());
+        motion = A.getPosition() + motion;
+        Point d2 = start_pos - motion;
+
+        if (d1.length() < d2.length()){
+            reverse (gradient);
+        }
+        A.setAngleTurned(A.getAngleTurned() + changeGradient (A.getNabla() + alpha, gradient)); 
+        A.setNabla(gradient);
+
+        int iter = 0;
+        while (crossing == A.inside && !endHere){ 
+            d1 = start_pos - A.getPosition(); // FIX ME: how do we want to deal with pair position
+            if (d1.length() > epsilon * epsilon)
+            {
+                endHere = endHere || A.MovePair(0, epsilon*epsilon, cp, 0);
+            }
+            else{
+                endHere = endHere || A.MovePair(0, d1.length(), cp, 0);
+            }
+            
+            ++iter;
+            if (iter > 10000)
+            {
+                cout<<"Iterations exceeding ..."<<endl;
+                print_data(A,B);
+                exit (0);
+            }
+        }
+    }
+    
+    return endHere;
+}
+
 double estimateArea (vector<Point> polygon)
 {
     double area = 0 ;
@@ -2087,7 +2357,8 @@ void sketch_algorithm (double alpha)
     for (int i = 0;i < num; i ++)
         ell.push_back (Ellipse(gaussianCenter[i], majorAxis, minorAxis));
     
-    PLUME plume;
+    PLUME plume; //FIX ME: delete
+    criticalPath cp;
     
     /*
      FIX ME
@@ -2097,11 +2368,19 @@ void sketch_algorithm (double alpha)
     
      */
     
-    plume.ovals = ell;
+    plume.ovals = ell; 
    // fprintf (out, "Ellipse (%lf,%lf) %lf %lf ", plume.ovals[0].center.x, plume.ovals[0].center.y, majorAxis, minorAxis);
     
-    Drone B (drone_start_B, drone_start_B, 1, 0, false);
-    Drone A (drone_start_A, drone_start_A, 1, 0, true);
+    Drone aa (drone_start_B, drone_start_B, 1, 0, false);
+    Drone ab (drone_start_A, drone_start_A, 1, 0, true);
+
+    Drone ba (drone_start_B, drone_start_B, 1, 0, false);
+    Drone bb (drone_start_A, drone_start_A, 1, 0, true);
+
+    //create drone pairs 
+    // FIX ME: set lambda
+    DronePair A(aa, ab, 0); 
+    DronePair B(ba, bb, 0);
     
     int TOKEN = 2;
     
@@ -2113,40 +2392,57 @@ void sketch_algorithm (double alpha)
     do{
         int iter = 0;
        //FIX ME: CHANGE A, B TO DRONE PAIRS AND IN THE FUNCTION CALL CROSS PLUME.
-        while ((A.numCross + B.numCross == 0 || 1 == A.inside + B.inside) && !loopEnd)
+        while ((A.getNumCross() + B.getNumCross() == 0 || 1 == A.getInside() + B.getInside()) && !loopEnd)
         {
          //   cout << "testing TOKEN ... "<< A.position.x << " "<< A.position.y <<" 1"<<  endl;
             ++iter;
             if (iter > 10000)
             {
                 cout<<"Iterations exceeding ..."<<endl;
-                print_data(A,B);
+                print_data(A,B); // FIX ME
                 exit (0);
             }
-            /*if (abs(A.position.x) > 2 || abs(A.position.y) > 2)
-                break ;
             
-            if (abs(B.position.x) > 2 || abs(B.position.y) > 2)
-                break ;*/
-            loopEnd = loopEnd || A.MoveDrone (alpha, epsilon, plume, 1);
-      //      if (A.numCross > 1)
-                loopEnd = loopEnd || B.MoveDrone (alpha, epsilon, plume, 1);
-            //   Sync (A,B,alpha);
+            // FIX ME: get terminating condition from collection of
+            // values passed from Move Drone
+            // loopEnd = loopEnd || A.MovePair (alpha, epsilon, plume, 1);
+            // loopEnd = loopEnd || B.MovePair (alpha, epsilon, plume, 1);
+
+            A.MovePair (alpha, epsilon, cp, 1);
+            B.MovePair (alpha, epsilon, cp, 1);
+            loopEnd = loopEnd || cp.foundSource(A.getPosition(), B.getPosition(), alpha, plume);
             
+            // FIX ME: Modify MoveDrone to return gradient contour
+            // and determine inside/outside from the returned gradient
+            // We will call the getCross function from the criticalPath
+            // and pass the info about each drone to get whether or
+            // not they drones crossed, if they are inside or outside
+            CrossData crossData = cp.getCross(A, B, alpha, dist)
+            if(crossData.second){
+                // call function to get gradient at crossing point
+                // FIX ME: need to determine which drone crossed
+                // and then get the gradient
+                if 
+                A.LearnGradient(crossData.first);
+                B.LearnGradient(crossData.first);
+
+            }
+
             
         }
-        if (A.inside + B.inside != 1)
+        if (A.getInside() + B.getInside() != 1)
         {
-            if (A.inside + B.inside == 0)
+            if (A.getInside() + B.getInside() == 0)
             {
                 alpha = epsilon;
             //    B.nabla = A.nabla;
 
-                loopEnd = loopEnd || CrossPlume (A,B, alpha, plume);
+                // FIXME
+                loopEnd = loopEnd || CrossCriticalPath (A,B, alpha, cp);
               //  if (A.inside + B.inside == 1)
-                Sync (A,B,alpha, epsilon, plume);
+                Sync (A,B,alpha, epsilon, cp); // FIX ME
             
-                    B.nabla = A.nabla;
+                    B.setNabla(A.getNabla);
               
  //               cout << "testing Sync A... "<< A.position.x << " "<<A.position.y <<" "<<alpha<<" "<<A.nabla<< endl;
  //               cout << "testing Sync B... "<< B.position.x << " "<<B.position.y <<" "<<alpha<<" "<<B.nabla<< endl;
@@ -2159,11 +2455,11 @@ void sketch_algorithm (double alpha)
         //        Sync (B,A,alpha, epsilon, plume);
               //  A.nabla = B.nabla;
 
-                loopEnd = loopEnd || CrossPlume (B,A, alpha, plume);
+                loopEnd = loopEnd || CrossCriticalPath (B,A, alpha, cp);
               //  if (A.inside + B.inside == 1)
-                Sync (B,A,alpha, epsilon, plume);
+                Sync (B,A,alpha, epsilon, cp);
 
-                    A.nabla = B.nabla;
+                    A.setNabla(B.nabla);
                 
    //             cout << "testing Sync B... "<< B.position.x << " "<<B.position.y <<" "<<alpha<<" "<<B.nabla<< endl;
    //             cout << "testing Sync A... "<< A.position.x << " "<<A.position.y <<" "<<alpha<<" "<<A.nabla<< endl;
@@ -2172,6 +2468,7 @@ void sketch_algorithm (double alpha)
         }
     }while (!loopEnd);
     
+    // FIX ME
     cout <<"Initial crossing with A is " << A.polytope[0].x << " " << A.polytope[0].y<< endl;
     cout << "angle turned by A is " << " " << A.angleTurned << endl;
     cout << "distance traversed by A is "<< " " << A.distTraversed << endl;
