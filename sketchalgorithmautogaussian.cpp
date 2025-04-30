@@ -1212,10 +1212,11 @@ class Drone {
     double angleTurned;
     double distTraversed;
     int currentGaussian;
-    PointUtil::vector lastMotion; // FIX ME ; can delete
+    Point motion; // FIX ME ; can delete
     vector<Point> polytope;
     vector<double> lastContourGradient;
     vector<double> currentContourGradient;
+    LineSegment currPath;
     
     Drone() 
     : position(Point(0, 0)), 
@@ -1229,7 +1230,8 @@ class Drone {
       currentGaussian(0), 
       lastContourGradient(), 
       currentContourGradient(), 
-      motion(PointUtil::vector(0,0)) {}
+      motion(Point(0,0)),
+      currPath(Point(0,0), Point(0,0)) {}
 
     Drone(Point P1, Point P2, int in, double nab, bool flag) 
         : position(P1), 
@@ -1243,7 +1245,8 @@ class Drone {
         currentGaussian(0), 
         lastContourGradient(), 
         currentContourGradient(), 
-        motion(0, 0) {}
+        motion(Point(0,0)),
+        currPath(Point(0,0), Point(0,0)) {}
     
     bool MoveDrone (double alpha, double dist, PLUME &plume, int callSource)
     {
@@ -1370,7 +1373,7 @@ class Drone {
         nextPosition = position + motion;
         
         // points.push_back (nextPosition);
-        LineSegment dronemotion = LineSegment (position, nextPosition);
+        currPath = LineSegment (position, nextPosition);
         
         // Update distance traversed
         distTraversed += dist;
@@ -1793,7 +1796,8 @@ struct criticalPath{
             double crossProductB = droneB.motion.x * tangentB[1] - droneB.motion.y * tangentB[0];
 
 
-        cout << "dot prod: " << dotProduct << endl;
+        cout << "cross prod A: " << crossProductA << endl;
+        cout << "cross prod B: " << crossProductB << endl;
 
         // Determine which drone crossed the contour if dot product
         // is negative
@@ -1981,10 +1985,10 @@ struct criticalPath{
        Drone droneBA = dpB.droneA;
        Drone droneBB = dpB.droneB;
 
-       Point droneAA_init = *(droneAA.lastMotion.start);
-       Point droneAB_init = *(droneAB.lastMotion.start);
-       Point droneBA_init = *(droneBA.lastMotion.start); 
-       Point droneBB_init = *(droneBB.lastMotion.start);
+       Point droneAA_init = *(droneAA.currPath.start);
+       Point droneAB_init = *(droneAB.currPath.start);
+       Point droneBA_init = *(droneBA.currPath.start); 
+       Point droneBB_init = *(droneBB.currPath.start);
 
        Point droneAA_curr = droneAA_init;
        Point droneAB_curr = droneAB_init;
